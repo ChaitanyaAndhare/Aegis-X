@@ -5,6 +5,12 @@ const { logOpenRouterKeyStatus } = await import('../src/lib/aegis/ai')
 const { default: app } = await import('../src/server/index')
 
 logOpenRouterKeyStatus()
-const port = 8787
-console.log(`AEGIS API → http://127.0.0.1:${port}`)
-serve({ fetch: app.fetch, port })
+
+const port = Number(process.env.PORT) || 8787
+
+console.log(`AEGIS API → port ${port}`)
+
+serve({
+  fetch: app.fetch,
+  port,
+})

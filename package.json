@@ -7,7 +7,8 @@
     "dev": "vite",
     "dev:api": "tsx scripts/dev-api.ts",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "tsx scripts/dev-api.ts"
   },
   "dependencies": {
     "@openrouter/ai-sdk-provider": "^0.7.5",
