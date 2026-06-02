@@ -2,7 +2,8 @@ import type { ChatMessage, HistoryComparison, HistoryEntry, IntelligenceReport }
 
 export type ScanReport = IntelligenceReport
 
-const API = '/api'
+const API =
+  import.meta.env.VITE_API_URL || 'http://localhost:8787/api'
 
 export type GuestMode = boolean
 
