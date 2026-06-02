@@ -1,0 +1,75 @@
+{
+  "missing_csp": {
+    "title": "Missing Content-Security-Policy",
+    "defaultSeverity": "medium",
+    "mitre": { "tactic": "Execution", "technique": "Client-side script abuse" },
+    "remediation": "Deploy a restrictive Content-Security-Policy aligned with application script sources.",
+    "threats": [
+      { "id": "script_injection", "label": "Script injection risk", "requiresClientJs": true },
+      { "id": "recon_client", "label": "Client-side reconnaissance", "requiresClientJs": true }
+    ]
+  },
+  "missing_hsts": {
+    "title": "Strict transport enforcement not observed",
+    "defaultSeverity": "medium",
+    "mitre": { "tactic": "Defense Evasion", "technique": "Protocol downgrade" },
+    "remediation": "Enable Strict-Transport-Security with appropriate max-age and includeSubDomains where applicable.",
+    "threats": [{ "id": "downgrade", "label": "Transport downgrade exposure" }]
+  },
+  "insecure_transport": {
+    "title": "Transport encryption not enforced",
+    "defaultSeverity": "high",
+    "mitre": { "tactic": "Collection", "technique": "Network sniffing" },
+    "remediation": "Serve the application over encrypted transport and redirect cleartext requests.",
+    "threats": [{ "id": "transit_intercept", "label": "In-transit data exposure" }]
+  },
+  "missing_x_frame": {
+    "title": "Clickjacking protections missing",
+    "defaultSeverity": "medium",
+    "mitre": { "tactic": "Collection", "technique": "UI redress" },
+    "remediation": "Set X-Frame-Options or frame-ancestors in CSP.",
+    "threats": [{ "id": "clickjack", "label": "UI redress / clickjacking" }]
+  },
+  "missing_xcto": {
+    "title": "MIME sniffing protection missing",
+    "defaultSeverity": "low",
+    "mitre": { "tactic": "Defense Evasion", "technique": "Masquerading" },
+    "remediation": "Set X-Content-Type-Options: nosniff on responses.",
+    "threats": [{ "id": "mime_sniff", "label": "MIME confusion attacks" }]
+  },
+  "cookie_secure_missing": {
+    "title": "Session cookie missing Secure flag",
+    "defaultSeverity": "high",
+    "mitre": { "tactic": "Credential Access", "technique": "Steal session cookie" },
+    "remediation": "Set Secure and HttpOnly on session cookies; review SameSite policy.",
+    "threats": [{ "id": "session_leak", "label": "Session token exposure", "requiresCookies": true }]
+  },
+  "cookie_httponly_missing": {
+    "title": "Session cookie missing HttpOnly flag",
+    "defaultSeverity": "medium",
+    "mitre": { "tactic": "Credential Access", "technique": "Steal session cookie" },
+    "remediation": "Set HttpOnly on authentication cookies.",
+    "threats": [{ "id": "session_theft_xss", "label": "Session theft via script", "requiresCookies": true, "requiresClientJs": true }]
+  },
+  "server_disclosure": {
+    "title": "Technology disclosure in headers",
+    "defaultSeverity": "low",
+    "mitre": { "tactic": "Discovery", "technique": "Software discovery" },
+    "remediation": "Remove or genericize Server and X-Powered-By headers.",
+    "threats": [{ "id": "recon", "label": "Targeted reconnaissance" }]
+  },
+  "exposed_api": {
+    "title": "Public API surface reachable",
+    "defaultSeverity": "medium",
+    "mitre": { "tactic": "Initial Access", "technique": "Exploit public application" },
+    "remediation": "Review API authentication, authorization, and rate limiting on exposed endpoints.",
+    "threats": [{ "id": "api_abuse", "label": "API misuse", "requiresApi": true }]
+  },
+  "login_surface": {
+    "title": "Authentication entry point exposed",
+    "defaultSeverity": "info",
+    "mitre": { "tactic": "Credential Access", "technique": "Brute force" },
+    "remediation": "Enforce MFA, rate limiting, and account lockout on authentication endpoints.",
+    "threats": [{ "id": "auth_abuse", "label": "Authentication abuse", "requiresAuth": true }]
+  }
+}

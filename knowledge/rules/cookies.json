@@ -1,0 +1,14 @@
+[
+  {
+    "id": "rule_cookie_secure",
+    "weaknessId": "cookie_secure_missing",
+    "when": { "cookieMissingFlag": "secure" },
+    "confidence": 93
+  },
+  {
+    "id": "rule_cookie_httponly",
+    "weaknessId": "cookie_httponly_missing",
+    "when": { "cookieMissingFlag": "httponly" },
+    "confidence": 90
+  }
+]

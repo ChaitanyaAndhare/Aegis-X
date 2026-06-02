@@ -1,0 +1,14 @@
+[
+  {
+    "id": "rule_exposed_api",
+    "weaknessId": "exposed_api",
+    "when": { "probeMatches": "/api" },
+    "confidence": 85
+  },
+  {
+    "id": "rule_login_surface",
+    "weaknessId": "login_surface",
+    "when": { "probeMatches": "/login" },
+    "confidence": 80
+  }
+]

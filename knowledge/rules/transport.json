@@ -1,0 +1,8 @@
+[
+  {
+    "id": "rule_insecure_transport",
+    "weaknessId": "insecure_transport",
+    "when": { "cleartextEntryPoint": true },
+    "confidence": 98
+  }
+]

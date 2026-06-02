@@ -1,0 +1,32 @@
+[
+  {
+    "id": "rule_missing_csp",
+    "weaknessId": "missing_csp",
+    "when": { "headerAbsent": "content-security-policy" },
+    "confidence": 95
+  },
+  {
+    "id": "rule_missing_hsts",
+    "weaknessId": "missing_hsts",
+    "when": { "headerAbsent": "strict-transport-security", "requiresEncryptedTransport": true },
+    "confidence": 90
+  },
+  {
+    "id": "rule_missing_xfo",
+    "weaknessId": "missing_x_frame",
+    "when": { "headerAbsent": "x-frame-options", "cspFrameAncestorsAbsent": true },
+    "confidence": 85
+  },
+  {
+    "id": "rule_missing_xcto",
+    "weaknessId": "missing_xcto",
+    "when": { "headerAbsent": "x-content-type-options" },
+    "confidence": 88
+  },
+  {
+    "id": "rule_server_disclosure",
+    "weaknessId": "server_disclosure",
+    "when": { "serverHeaderDisclosed": true },
+    "confidence": 92
+  }
+]

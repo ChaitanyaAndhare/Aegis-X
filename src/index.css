@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  .thm-panel {
+    @apply rounded-xl border border-thm-border bg-card shadow-thm;
+  }
+  .thm-panel-hover {
+    @apply thm-panel transition hover:border-primary/40 hover:shadow-thm-glow;
+  }
+  .thm-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-thm-glow transition hover:brightness-110 active:scale-[0.98];
+  }
+  .thm-btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border-2 border-thm-border bg-transparent px-4 py-2 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:text-primary;
+  }
+  .thm-label {
+    @apply text-xs font-bold uppercase tracking-wider text-muted-foreground;
+  }
+  .grade-badge {
+    @apply inline-flex h-14 w-14 items-center justify-center rounded-xl font-black text-2xl shadow-thm;
+  }
+}
