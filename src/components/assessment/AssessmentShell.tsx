@@ -43,8 +43,8 @@ export function AssessmentShell({
     (['critical', 'high', 'medium', 'low'].includes(s) ? s : 'muted') as 'critical' | 'high' | 'medium' | 'low' | 'muted'
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] gap-0 -mx-6">
-      <aside className="w-48 shrink-0 border-r border-thm-border px-3 py-2">
+    <div className="flex min-h-[calc(100vh-4rem)] gap-0">
+      <aside className="w-48 shrink-0 border-r border-border px-3 py-2">
         <nav className="space-y-0.5">
           {NAV.map((item) => (
             <button
@@ -65,7 +65,7 @@ export function AssessmentShell({
       </aside>
 
       <div className="min-w-0 flex-1 px-6 pb-16">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-thm-border py-4">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border py-4">
           <div>
             <h1 className="text-lg font-semibold">{label}</h1>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -122,10 +122,8 @@ export function AssessmentShell({
                 </ul>
               </Panel>
             </div>
-            <Panel title="Threat graph (preview)">
-              <div className="h-64 rounded border border-thm-border">
-                <ThreatExposureGraph nodes={p.threatExposureGraph.nodes} edges={p.threatExposureGraph.edges} />
-              </div>
+            <Panel title="Threat graph">
+              <ThreatExposureGraph nodes={p.threatExposureGraph.nodes} edges={p.threatExposureGraph.edges} height={280} />
             </Panel>
             <Panel title="Roadmap (preview)">
               <ol className="space-y-2 text-sm text-muted-foreground">
@@ -182,9 +180,7 @@ export function AssessmentShell({
 
         {section === 'graph' && (
           <div className="py-6">
-            <div className="h-[480px] rounded border border-thm-border p-2">
-              <ThreatExposureGraph nodes={p.threatExposureGraph.nodes} edges={p.threatExposureGraph.edges} />
-            </div>
+            <ThreatExposureGraph nodes={p.threatExposureGraph.nodes} edges={p.threatExposureGraph.edges} height={520} />
           </div>
         )}
 

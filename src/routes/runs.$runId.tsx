@@ -1,9 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { getRun, subscribeRun } from '../lib/api'
 import type { IntelligenceReport } from '../lib/types'
 import { EnterpriseDashboard } from '@/components/enterprise/EnterpriseDashboard'
-import { AssessmentShell } from '@/components/assessment/AssessmentShell'
 import { PipelineLoader } from '@/components/intelligence/PipelineLoader'
 import { Alert } from '@/components/ui/alert'
 
@@ -56,32 +55,22 @@ function RunPage() {
 
   if (status === 'failed' && !report) {
     return (
-      <div className="space-y-3">
+      <div className="ax-container py-20">
         <Alert variant="destructive">{error ?? 'Scan failed'}</Alert>
-        <button type="button" className="thm-btn-outline text-xs" onClick={() => (window.location.href = '/')}>
-          Try again
-        </button>
+        <Link to="/" className="ax-btn-ghost mt-6 inline-flex">
+          Back
+        </Link>
       </div>
     )
   }
 
-  if (!report) {
-    return <Alert variant="destructive">{error ?? 'No report yet'}</Alert>
-  }
-
-  if (report.enterprise?.scanResult) {
+  if (!report?.enterprise?.scanResult) {
     return (
-      <div className="space-y-4">
-        <EnterpriseDashboard scanResult={report.enterprise.scanResult} />
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer">Legacy assessment panels</summary>
-          <div className="mt-4">
-            <AssessmentShell report={report} runId={runId} onRescan={() => (window.location.href = '/')} />
-          </div>
-        </details>
+      <div className="ax-container py-20">
+        <Alert variant="destructive">{error ?? 'No report'}</Alert>
       </div>
     )
   }
 
-  return <AssessmentShell report={report} runId={runId} onRescan={() => (window.location.href = '/')} />
+  return <EnterpriseDashboard scanResult={report.enterprise.scanResult} />
 }

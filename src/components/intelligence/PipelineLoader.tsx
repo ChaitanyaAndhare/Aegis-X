@@ -1,22 +1,22 @@
-import { Loader2 } from 'lucide-react'
-
-const STEPS = [
-  'Extract — browser & network capture',
-  'Transform — heuristic rules engine',
-  'Risk — contextual severity profiling',
-  'Load — persist inventory & findings',
-  'Delta — historical comparison',
-]
+const STEPS = ['Extract', 'Transform', 'Risk', 'Load', 'Delta']
 
 export function PipelineLoader({ activeStep }: { activeStep: number }) {
+  const current = Math.min(activeStep, STEPS.length)
+
   return (
-    <div className="py-16 text-center">
-      <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-      <p className="mt-4 text-sm font-medium">Penetration test in progress</p>
-      <p className="mt-1 text-xs text-muted-foreground">{STEPS[activeStep - 1] ?? STEPS[0]}</p>
-      <p className="mt-4 max-w-sm mx-auto text-xs text-muted-foreground">
-        Deterministic Security ETL — zero AI in the evaluation pipeline
-      </p>
+    <div className="flex min-h-[60vh] flex-col items-center justify-center animate-fade-in">
+      <p className="ax-label mb-6">Running scan</p>
+      <div className="flex gap-2">
+        {STEPS.map((label, i) => (
+          <div
+            key={label}
+            className={`h-1 w-12 rounded-full transition-colors duration-500 ${
+              i < current ? 'bg-foreground' : 'bg-border'
+            }`}
+          />
+        ))}
+      </div>
+      <p className="mt-8 font-display text-2xl">{STEPS[current - 1] ?? STEPS[0]}</p>
     </div>
   )
 }

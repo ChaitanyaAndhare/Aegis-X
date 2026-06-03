@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { checkHealth, createScan, startRun, listScans } from '../lib/api'
 import { useGuest } from '../lib/guest'
 import { STACK_HINT_OPTIONS, formatScanDescription } from '@/lib/aegis/parse-hints'
-import { Input } from '@/components/ui/input'
 import { Alert } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
@@ -16,7 +15,6 @@ function HomePage() {
   const [url, setUrl] = useState('')
   const [github, setGithub] = useState('')
   const [hints, setHints] = useState<string[]>([])
-  const [showHints, setShowHints] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
@@ -35,29 +33,27 @@ function HomePage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!url && !github) {
-      setError('Enter an application URL or GitHub repository.')
+    if (!url.trim()) {
+      setError('Enter a URL.')
       return
     }
     if (!ready) {
-      setError('API server is not reachable. Start the dev server.')
+      setError('API unavailable.')
       return
     }
     if (!authorized) {
-      setError('Confirm you are authorized to test this target.')
+      setError('Authorization required.')
       return
     }
     setError(null)
     setLoading(true)
     try {
-      let title = 'Assessment'
-      const fullUrl = url ? (url.startsWith('http') ? url : `https://${url}`) : undefined
-      if (fullUrl) {
-        try {
-          title = new URL(fullUrl).hostname
-        } catch {
-          title = url
-        }
+      const fullUrl = url.startsWith('http') ? url : `https://${url}`
+      let title = fullUrl
+      try {
+        title = new URL(fullUrl).hostname
+      } catch {
+        /* keep */
       }
       const { id } = await createScan(
         {
@@ -79,23 +75,28 @@ function HomePage() {
   }
 
   return (
-    <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Attack surface assessment</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Deterministic Security ETL: Playwright extraction, static rules, contextual risk scoring, and evidence-backed
-          findings. AI is limited to optional chat on completed scans — not in the scan pipeline.
-        </p>
-      </div>
+    <div className="mx-auto max-w-xl animate-slide-up">
+      <h1 className="ax-display">
+        Scan fast.
+        <br />
+        <span className="text-muted-foreground">Prove every finding.</span>
+      </h1>
 
-      <form onSubmit={submit} className="space-y-4">
-        <div>
-          <label htmlFor="org" className="text-sm font-medium">
-            Organization risk profile
-          </label>
+      <form onSubmit={submit} className="mt-14 space-y-8">
+        <Field label="Target">
+          <input
+            id="url"
+            className="w-full border-0 border-b border-border bg-transparent py-3 text-lg outline-none transition focus:border-foreground"
+            placeholder="example.com"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            autoComplete="url"
+          />
+        </Field>
+
+        <Field label="Risk profile">
           <select
-            id="org"
-            className="mt-1.5 flex h-10 w-full rounded-md border border-thm-border bg-background px-3 text-sm"
+            className="w-full border-0 border-b border-border bg-transparent py-3 text-sm outline-none focus:border-foreground"
             value={orgType}
             onChange={(e) => setOrgType(e.target.value as typeof orgType)}
           >
@@ -105,79 +106,63 @@ function HomePage() {
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label htmlFor="url" className="text-sm font-medium">
-            Application URL
-          </label>
-          <Input
-            id="url"
-            className="mt-1.5"
-            placeholder="example.com"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="gh" className="text-sm font-medium">
-            GitHub <span className="font-normal text-muted-foreground">(optional)</span>
-          </label>
-          <Input
-            id="gh"
-            className="mt-1.5"
-            placeholder="github.com/org/repo"
-            value={github}
-            onChange={(e) => setGithub(e.target.value)}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowHints((v) => !v)}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          {showHints ? 'Hide' : 'Show'} stack hints (optional)
-        </button>
-        {showHints && (
-          <div className="flex flex-wrap gap-2">
-            {STACK_HINT_OPTIONS.map((h) => (
-              <button
-                key={h}
-                type="button"
-                onClick={() => setHints((p) => (p.includes(h) ? p.filter((x) => x !== h) : [...p, h]))}
-                className={cn(
-                  'rounded border px-2 py-1 text-xs',
-                  hints.includes(h) ? 'border-primary text-primary' : 'border-thm-border text-muted-foreground',
-                )}
-              >
-                {h}
-              </button>
-            ))}
+        </Field>
+
+        <details className="text-sm text-muted-foreground">
+          <summary className="cursor-pointer hover:text-foreground">Advanced</summary>
+          <div className="mt-4 space-y-4">
+            <input
+              className="w-full border-b border-border bg-transparent py-2 text-sm outline-none"
+              placeholder="GitHub (optional)"
+              value={github}
+              onChange={(e) => setGithub(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              {STACK_HINT_OPTIONS.map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setHints((p) => (p.includes(h) ? p.filter((x) => x !== h) : [...p, h]))}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs transition',
+                    hints.includes(h) ? 'border-foreground bg-foreground text-background' : 'border-border',
+                  )}
+                >
+                  {h}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
-        <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
+        </details>
+
+        <label className="flex cursor-pointer items-start gap-3 text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={authorized}
             onChange={(e) => setAuthorized(e.target.checked)}
-            className="mt-0.5 accent-primary"
+            className="mt-1 rounded border-border"
           />
-          <span>
-            I confirm I own this application or have written permission to perform security testing on this URL.
-          </span>
+          <span>I am authorized to test this target.</span>
         </label>
+
         {error && <Alert variant="destructive">{error}</Alert>}
-        <button type="submit" disabled={loading || !ready || !authorized} className="thm-btn w-full disabled:opacity-50">
-          {loading ? 'Scanning…' : 'Start assessment'}
+
+        <button type="submit" disabled={loading || !ready || !authorized} className="ax-btn w-full">
+          {loading ? 'Scanning' : 'Start scan'}
         </button>
       </form>
 
       {recent.length > 0 && (
-        <div className="border-t border-thm-border pt-6">
-          <p className="text-xs font-medium text-muted-foreground">Recent</p>
-          <ul className="mt-2 space-y-1 text-sm">
+        <div className="mt-20 border-t border-border pt-10">
+          <p className="ax-label">Recent</p>
+          <ul className="mt-4 space-y-2">
             {recent.map((r) => (
               <li key={r.id}>
-                <Link to="/runs/$runId" params={{ runId: r.id }} className="text-primary hover:underline">
+                <Link
+                  to="/runs/$runId"
+                  params={{ runId: r.id }}
+                  className="text-sm text-muted-foreground transition hover:text-foreground"
+                >
                   {r.id.slice(0, 8)}
                 </Link>
               </li>
@@ -185,6 +170,15 @@ function HomePage() {
           </ul>
         </div>
       )}
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="ax-label">{label}</label>
+      <div className="mt-2">{children}</div>
     </div>
   )
 }
