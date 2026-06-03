@@ -11,6 +11,9 @@ import { applyPostureToReport, buildPlatformIntelligence } from '../lib/platform
 import { buildScanSignals, injectTransportFindings } from '../lib/platform/evidence-engine'
 import { GUEST_USER_ID } from '../lib/types'
 
+// Import new enterprise backend
+import apiRoutes from '../backend/api/api-routes'
+
 logOpenRouterKeyStatus()
 
 const app = new Hono()
@@ -25,9 +28,10 @@ app.get('/api/health', (c) =>
   c.json({
     ok: true,
     service: 'aegis-x',
-    version: 'intelligence-1.0',
-    pipeline: 'pentest → evidence → rules → threat → risk → roadmap',
-    methodology: 'automated-pentest',
+    version: 'enterprise-2.0',
+    pipeline: 'extract → transform → load (deterministic ETL)',
+    methodology: 'security-etl',
+    architecture: 'zero-ai-backend',
     openRouter: Boolean(process.env.OPENROUTER_API_KEY?.trim()),
     chatAvailable: Boolean(process.env.OPENROUTER_API_KEY?.trim()),
   }),
@@ -299,5 +303,8 @@ app.post('/api/runs/:runId/chat', async (c) => {
     return c.json({ error: e.userMessage }, 500)
   }
 })
+
+// Mount new enterprise API routes under /api/v2
+app.route('/api/v2', apiRoutes)
 
 export default app
