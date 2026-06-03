@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { getRun, subscribeRun } from '../lib/api'
 import type { IntelligenceReport } from '../lib/types'
+import { EnterpriseDashboard } from '@/components/enterprise/EnterpriseDashboard'
 import { AssessmentShell } from '@/components/assessment/AssessmentShell'
 import { PipelineLoader } from '@/components/intelligence/PipelineLoader'
 import { Alert } from '@/components/ui/alert'
@@ -10,7 +11,7 @@ export const Route = createFileRoute('/runs/$runId')({
   component: RunPage,
 })
 
-const AGENTS = ['pentest', 'evidence', 'rules', 'threat', 'risk', 'roadmap']
+const ETL_AGENTS = ['extract', 'transform', 'risk', 'load', 'delta']
 
 function RunPage() {
   const { runId } = Route.useParams()
@@ -18,23 +19,22 @@ function RunPage() {
   const [status, setStatus] = useState<'running' | 'completed' | 'failed'>('running')
   const [error, setError] = useState<string | null>(null)
   const [activeAgent, setActiveAgent] = useState(1)
-  const [upgraded, setUpgraded] = useState(false)
 
   useEffect(() => {
     const apply = (r: Awaited<ReturnType<typeof getRun>>) => {
       if (r.report) setReport(r.report)
       setStatus(r.status)
       if (r.error) setError(r.error.message)
-      setUpgraded(Boolean(r.upgradedFromLegacy))
       const last = r.steps.filter((s) => s.step < 900).at(-1)?.agent_name
-      setActiveAgent(last ? Math.max(AGENTS.indexOf(last) + 1, 1) : 1)
+      const idx = last ? ETL_AGENTS.indexOf(last) : -1
+      if (idx >= 0) setActiveAgent(idx + 1)
     }
 
     getRun(runId).then(apply).catch(() => setError('Failed to load'))
     return subscribeRun(
       runId,
       (s) => {
-        const i = AGENTS.indexOf(s.agent)
+        const i = ETL_AGENTS.indexOf(s.agent)
         if (i >= 0) setActiveAgent(i + 1)
       },
       (d) => {
@@ -69,12 +69,19 @@ function RunPage() {
     return <Alert variant="destructive">{error ?? 'No report yet'}</Alert>
   }
 
-  return (
-    <>
-      {upgraded && (
-        <p className="mb-6 text-xs text-muted-foreground">Legacy report — run a new assessment for full analysis.</p>
-      )}
-      <AssessmentShell report={report} runId={runId} onRescan={() => (window.location.href = '/')} />
-    </>
-  )
+  if (report.enterprise?.scanResult) {
+    return (
+      <div className="space-y-4">
+        <EnterpriseDashboard scanResult={report.enterprise.scanResult} />
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer">Legacy assessment panels</summary>
+          <div className="mt-4">
+            <AssessmentShell report={report} runId={runId} onRescan={() => (window.location.href = '/')} />
+          </div>
+        </details>
+      </div>
+    )
+  }
+
+  return <AssessmentShell report={report} runId={runId} onRescan={() => (window.location.href = '/')} />
 }

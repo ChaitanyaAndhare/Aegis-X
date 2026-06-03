@@ -32,6 +32,7 @@ export async function createScan(
     apiSpec?: string
     ctfDescription?: string
     authorized?: boolean
+    orgType?: 'Fintech' | 'Healthcare' | 'SaaS' | 'Startup' | 'Ecommerce' | 'Government'
   },
   guest: boolean,
 ) {

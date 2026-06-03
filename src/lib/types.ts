@@ -216,6 +216,8 @@ export type IntelligenceReport = {
   riskNarrative?: string
   targetUrl?: string
   targetTitle?: string
+  /** Deterministic ETL payload for enterprise dashboard (zero AI in pipeline). */
+  enterprise?: { scanResult: import('../backend/core/types').ScanResult }
 }
 
 /** @deprecated use IntelligenceReport */

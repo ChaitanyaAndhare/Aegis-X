@@ -1,5 +1,5 @@
-import { PIPELINE_STEPS, runDeterministicAssessment } from '../core/pipeline'
-import { coreToIntelligenceReport } from '../core/to-report'
+import { ETL_PIPELINE_STEPS, executeEtlPipeline, formatOrgTypeTag, parseOrgTypeFromDescription } from '../../backend/etl/pipeline'
+import { scanResultToIntelligenceReport } from '../../backend/load/to-intelligence-report'
 import { mapToAegisError, AegisError } from './errors'
 import { logAegis, logError } from './log'
 import { formatScanDescription, parseStackHints } from './parse-hints'
@@ -87,34 +87,42 @@ export async function executeRun(runId: string, _userId: string) {
 
   try {
     const targetUrl = challenge.target_url.trim()
-    const core = await runDeterministicAssessment({
-      scanId: challenge.id,
+    const orgType = parseOrgTypeFromDescription(challenge.description)
+
+    let lastStepDetail: Record<string, unknown> = {}
+    const scanResult = await executeEtlPipeline({
       targetUrl,
-      targetTitle: challenge.title,
+      orgType,
+      onStep: (step, detail) => {
+        lastStepDetail = detail
+      },
     })
 
-    const phaseMs = Math.max(1, Math.round(core.durationMs / PIPELINE_STEPS.length))
-    for (let i = 0; i < PIPELINE_STEPS.length; i++) {
-      const phase = PIPELINE_STEPS[i]
+    const phaseMs = Math.max(1, Math.round((scanResult.duration * 1000) / ETL_PIPELINE_STEPS.length))
+    for (let i = 0; i < ETL_PIPELINE_STEPS.length; i++) {
+      const phase = ETL_PIPELINE_STEPS[i]
       recordStep(
         runId,
         i + 1,
         phase,
-        { targetUrl },
+        { targetUrl, orgType },
         {
-          pentestChecks: phase === 'pentest' ? core.pentest.checksRun.length : undefined,
-          verified: phase === 'pentest' ? core.pentest.findings.filter((f) => f.status === 'verified').length : undefined,
-          findings: phase === 'rules' ? core.findings.length : undefined,
-          facts: phase === 'evidence' ? core.facts.length : undefined,
-          nodes: phase === 'threat' ? core.graph.nodes.length : undefined,
-          riskScore: phase === 'risk' ? core.riskScore : undefined,
-          items: phase === 'roadmap' ? core.remediation.length : undefined,
+          endpoints: phase === 'extract' ? scanResult.assetInventory.endpoints.length : undefined,
+          findings: phase === 'transform' ? scanResult.findings.length : undefined,
+          debt: phase === 'risk' ? scanResult.securityDebt.totalScore : undefined,
+          persisted: phase === 'load' ? true : undefined,
+          delta: phase === 'delta' ? scanResult.delta : undefined,
+          ...lastStepDetail,
         },
         phaseMs,
       )
     }
 
-    const report = coreToIntelligenceReport(core)
+    if (scanResult.status === 'failed') {
+      throw new AegisError('UNKNOWN', scanResult.error ?? 'Deterministic scan failed')
+    }
+
+    const report = scanResultToIntelligenceReport(scanResult, challenge.title)
 
     localStore.write((d) => {
       d.scan_results = d.scan_results.filter((s) => s.run_id !== runId)
@@ -124,7 +132,7 @@ export async function executeRun(runId: string, _userId: string) {
         r.finished_at = new Date().toISOString()
         r.success = true
         r.cost_tokens = 0
-        r.total_steps = PIPELINE_STEPS.length
+        r.total_steps = ETL_PIPELINE_STEPS.length
         r.error_code = null
         r.error_message = null
       }
@@ -134,8 +142,8 @@ export async function executeRun(runId: string, _userId: string) {
         id: uuid(),
         user_id: run.user_id,
         run_id: runId,
-        summary: core.observedPosture.summary.slice(0, 500),
-        outcome: core.riskScore >= 85 ? 'low_risk' : 'needs_remediation',
+        summary: report.executiveSummary.slice(0, 500),
+        outcome: report.securityScore >= 85 ? 'low_risk' : 'needs_remediation',
       })
     })
 
@@ -172,12 +180,14 @@ export function createScan(opts: {
   apiSpec?: string
   ctfDescription?: string
   authorized?: boolean
+  orgType?: import('../../backend/core/types').OrgType
 }) {
   const description =
     [
       opts.appDescription,
       opts.ctfDescription,
       opts.authorized ? '[authorized: true]' : '',
+      opts.orgType ? formatOrgTypeTag(opts.orgType) : formatOrgTypeTag('SaaS'),
     ]
       .filter(Boolean)
       .join('\n\n') || formatScanDescription(undefined, [])

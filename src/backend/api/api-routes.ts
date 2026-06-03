@@ -1,146 +1,84 @@
 /**
- * Backend API Routes
- * Hono-based API endpoints for scan initiation, results retrieval, and history
+ * Enterprise ETL API (/api/v2)
  */
 
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { ScanService, createScanService } from './scan-service';
-import { ScanRequest } from '../core/types';
+import { Hono } from 'hono'
+import { cors } from 'hono/cors'
+import type { ScanRequest } from '../core/types'
+import { createScanService } from './scan-service'
+import { RulesEngine } from '../rules'
+import { getScanById, listScans } from '../load/scan-repository'
 
-// In-memory storage for scan results (in production, use PostgreSQL)
-const scanResults = new Map<string, any>();
-const scanServicePromise = createScanService();
+const scanService = createScanService()
+const rulesEngine = new RulesEngine()
 
-const api = new Hono();
+const api = new Hono()
+api.use('*', cors())
 
-// Enable CORS
-api.use('*', cors());
+api.get('/health', (c) =>
+  c.json({
+    status: 'ok',
+    pipeline: 'extract-transform-load',
+    aiInBackend: false,
+    timestamp: new Date().toISOString(),
+  }),
+)
 
-/**
- * Health check endpoint
- */
-api.get('/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-/**
- * Initiate a new scan
- * POST /api/scan
- */
 api.post('/scan', async (c) => {
   try {
-    const body = await c.req.json();
+    const body = await c.req.json()
     const scanRequest: ScanRequest = {
       targetUrl: body.targetUrl,
       orgType: body.orgType || 'SaaS',
       scanDepth: body.scanDepth || 'standard',
       includeSubdomains: body.includeSubdomains || false,
-      maxPages: body.maxPages || 10
-    };
-
-    // Validate URL
-    try {
-      new URL(scanRequest.targetUrl);
-    } catch {
-      return c.json({ error: 'Invalid URL' }, 400);
+      maxPages: body.maxPages || 10,
     }
 
-    const scanService = await scanServicePromise;
-    const result = await scanService.executeScan(scanRequest);
+    try {
+      new URL(scanRequest.targetUrl)
+    } catch {
+      return c.json({ error: 'Invalid URL' }, 400)
+    }
 
-    // Store result
-    scanResults.set(result.scanId, result);
-
-    return c.json(result);
+    const result = await scanService.executeScan(scanRequest)
+    return c.json(result, result.status === 'failed' ? 500 : 200)
   } catch (error) {
-    console.error('Scan error:', error);
+    console.error('Scan error:', error)
     return c.json(
       { error: 'Scan failed', message: error instanceof Error ? error.message : 'Unknown error' },
-      500
-    );
+      500,
+    )
   }
-});
+})
 
-/**
- * Get scan result by ID
- * GET /api/scan/:id
- */
 api.get('/scan/:id', (c) => {
-  const scanId = c.req.param('id');
-  const result = scanResults.get(scanId);
+  const result = getScanById(c.req.param('id'))
+  if (!result) return c.json({ error: 'Scan not found' }, 404)
+  return c.json(result)
+})
 
-  if (!result) {
-    return c.json({ error: 'Scan not found' }, 404);
-  }
-
-  return c.json(result);
-});
-
-/**
- * Get all scan history
- * GET /api/scans
- */
 api.get('/scans', (c) => {
-  const scans = Array.from(scanResults.values()).sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
+  const scans = listScans()
+  return c.json({ scans, count: scans.length })
+})
 
-  return c.json({ scans, count: scans.length });
-});
-
-/**
- * Get scan delta comparison
- * GET /api/scan/:id/delta
- */
 api.get('/scan/:id/delta', (c) => {
-  const scanId = c.req.param('id');
-  const result = scanResults.get(scanId);
+  const result = getScanById(c.req.param('id'))
+  if (!result?.delta) return c.json({ error: 'No delta available' }, 404)
+  return c.json(result.delta)
+})
 
-  if (!result) {
-    return c.json({ error: 'Scan not found' }, 404);
-  }
-
-  if (!result.delta) {
-    return c.json({ error: 'No delta available' }, 404);
-  }
-
-  return c.json(result.delta);
-});
-
-/**
- * Delete a scan result
- * DELETE /api/scan/:id
- */
 api.delete('/scan/:id', (c) => {
-  const scanId = c.req.param('id');
-  const deleted = scanResults.delete(scanId);
+  return c.json({ message: 'Delete not supported in memory mode' })
+})
 
-  if (!deleted) {
-    return c.json({ error: 'Scan not found' }, 404);
-  }
+api.get('/org-types', (c) =>
+  c.json({
+    orgTypes: ['Fintech', 'Healthcare', 'SaaS', 'Startup', 'Ecommerce', 'Government'],
+  }),
+)
 
-  return c.json({ message: 'Scan deleted successfully' });
-});
+api.get('/rules', (c) => c.json({ rules: rulesEngine.getRules().map((r) => ({ id: r.id, title: r.title, category: r.category, severity: r.severity })) }))
 
-/**
- * Get supported organization types
- * GET /api/org-types
- */
-api.get('/org-types', (c) => {
-  return c.json({
-    orgTypes: ['Fintech', 'Healthcare', 'SaaS', 'Startup', 'Ecommerce', 'Government']
-  });
-});
-
-/**
- * Get available rules
- * GET /api/rules
- */
-api.get('/rules', async (c) => {
-  const scanService = await scanServicePromise;
-  // Note: This would need to be exposed from the rules engine
-  return c.json({ rules: [] });
-});
-
-export default api;
+export default api

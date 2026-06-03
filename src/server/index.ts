@@ -46,6 +46,7 @@ app.post('/api/scans', async (c) => {
       apiSpec?: string
       ctfDescription?: string
       authorized?: boolean
+      orgType?: import('../backend/core/types').OrgType
     }>()
     const userId = resolveUserId(c.req.header('x-aegis-user'))
     const id = createScan({
@@ -56,6 +57,7 @@ app.post('/api/scans', async (c) => {
       apiSpec: body.apiSpec,
       ctfDescription: body.ctfDescription,
       authorized: body.authorized,
+      orgType: body.orgType,
     })
     return c.json({ id })
   } catch (err) {

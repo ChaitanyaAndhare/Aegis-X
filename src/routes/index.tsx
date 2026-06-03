@@ -22,6 +22,7 @@ function HomePage() {
   const [ready, setReady] = useState(false)
   const [recent, setRecent] = useState<{ id: string }[]>([])
   const [authorized, setAuthorized] = useState(false)
+  const [orgType, setOrgType] = useState<'Fintech' | 'Healthcare' | 'SaaS' | 'Startup' | 'Ecommerce' | 'Government'>('SaaS')
 
   useEffect(() => {
     checkHealth()
@@ -64,6 +65,7 @@ function HomePage() {
           appDescription: formatScanDescription(github || undefined, hints),
           title,
           authorized: true,
+          orgType,
         },
         guest,
       )
@@ -79,14 +81,31 @@ function HomePage() {
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Automated penetration test</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Attack surface assessment</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Runs like a mid-level external pentester: recon, safe active probes (XSS/SQLi/CORS/redirect/path checks), then
-          evidence-backed findings and remediation. Educational payloads only — no destructive testing.
+          Deterministic Security ETL: Playwright extraction, static rules, contextual risk scoring, and evidence-backed
+          findings. AI is limited to optional chat on completed scans — not in the scan pipeline.
         </p>
       </div>
 
       <form onSubmit={submit} className="space-y-4">
+        <div>
+          <label htmlFor="org" className="text-sm font-medium">
+            Organization risk profile
+          </label>
+          <select
+            id="org"
+            className="mt-1.5 flex h-10 w-full rounded-md border border-thm-border bg-background px-3 text-sm"
+            value={orgType}
+            onChange={(e) => setOrgType(e.target.value as typeof orgType)}
+          >
+            {(['SaaS', 'Fintech', 'Healthcare', 'Startup', 'Ecommerce', 'Government'] as const).map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label htmlFor="url" className="text-sm font-medium">
             Application URL
@@ -148,7 +167,7 @@ function HomePage() {
         </label>
         {error && <Alert variant="destructive">{error}</Alert>}
         <button type="submit" disabled={loading || !ready || !authorized} className="thm-btn w-full disabled:opacity-50">
-          {loading ? 'Pentesting…' : 'Start pentest'}
+          {loading ? 'Scanning…' : 'Start assessment'}
         </button>
       </form>
 

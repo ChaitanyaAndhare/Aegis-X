@@ -1,273 +1,229 @@
 /**
- * Task 1: Core Scraper & Ingestion Service
- * Headless Browser Isolation with Playwright
- * Pure deterministic ETL - no AI in this layer
+ * Extract layer: isolated Playwright instance per scan.
+ * Deterministic capture only — no AI.
  */
 
-import { chromium, Browser, Page, BrowserContext } from 'playwright';
-import { AssetInventory, ScanRequest, Cookie, Endpoint, Technology } from '../core/types';
-import { v4 as uuidv4 } from 'uuid';
+import { chromium, type Browser, type Page, type Response } from 'playwright'
+import { v4 as uuidv4 } from 'uuid'
+import type {
+  AssetInventory,
+  CapturedHttpExchange,
+  Cookie,
+  DomFormField,
+  Endpoint,
+  ExternalScriptSource,
+  ScanRequest,
+} from '../core/types'
+import { resolveDnsRecords } from './dns-probe'
+import { scanTcpPorts } from './port-probe'
+import { fingerprintTechnologies } from './technology-fingerprint'
+
+function normalizeHeaders(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(headers)) {
+    out[k.toLowerCase()] = v
+  }
+  return out
+}
+
+function determineEndpointType(resourceType: string): Endpoint['type'] {
+  const typeMap: Record<string, Endpoint['type']> = {
+    xhr: 'api',
+    fetch: 'api',
+    websocket: 'websocket',
+    document: 'static',
+    stylesheet: 'static',
+    script: 'static',
+    image: 'static',
+    font: 'static',
+    media: 'static',
+  }
+  return typeMap[resourceType] ?? 'static'
+}
+
+async function extractDomArtifacts(page: Page): Promise<{
+  domForms: DomFormField[]
+  externalScripts: ExternalScriptSource[]
+}> {
+  return page.evaluate(() => {
+    const domForms: DomFormField[] = []
+    for (const form of Array.from(document.querySelectorAll('form'))) {
+      const fields: { name: string; type: string }[] = []
+      for (const el of Array.from(form.querySelectorAll('input, textarea, select'))) {
+        const name = (el as HTMLInputElement).name || (el as HTMLInputElement).id || '(unnamed)'
+        fields.push({ name, type: (el as HTMLInputElement).type || el.tagName.toLowerCase() })
+      }
+      domForms.push({
+        formAction: form.action || window.location.href,
+        formMethod: (form.method || 'get').toUpperCase(),
+        fields,
+      })
+    }
+    const externalScripts: ExternalScriptSource[] = []
+    for (const script of Array.from(document.querySelectorAll('script[src]'))) {
+      externalScripts.push({
+        src: (script as HTMLScriptElement).src,
+        crossOrigin: script.getAttribute('crossorigin'),
+      })
+    }
+    return { domForms, externalScripts }
+  })
+}
 
 export class ScanWorker {
-  private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
-  private page: Page | null = null;
-
-  async initialize(): Promise<void> {
-    this.browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-sandbox',
-        '--disable-setuid-sandbox'
-      ]
-    });
-
-    this.context = await this.browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1920, height: 1080 },
-      ignoreHTTPSErrors: true
-    });
-
-    this.page = await this.context.newPage();
-  }
-
+  /**
+   * Each scan spins up an isolated browser instance and tears it down afterward.
+   */
   async scan(request: ScanRequest): Promise<AssetInventory> {
-    if (!this.page) {
-      throw new Error('ScanWorker not initialized. Call initialize() first.');
-    }
+    const scanId = uuidv4()
+    const scanTime = new Date().toISOString()
+    const target = new URL(request.targetUrl)
+    const pageIsHttps = target.protocol === 'https:'
 
-    const scanId = uuidv4();
-    const scanTime = new Date().toISOString();
+    const headers: Record<string, string> = {}
+    const cookies: Cookie[] = []
+    const endpoints: Endpoint[] = []
+    const httpExchanges: CapturedHttpExchange[] = []
+    const mixedContentViolations: string[] = []
 
-    // Collect HTTP request/response data
-    const headers: Record<string, string> = {};
-    const cookies: Cookie[] = [];
-    const endpoints: Endpoint[] = [];
-    const technologies: Technology[] = [];
-    const mixedContentViolations: string[] = [];
-
-    // Intercept network requests
-    await this.page.route('**/*', async (route: any) => {
-      const request = route.request();
-      const response = await route.fetch();
-
-      // Capture response headers
-      const responseHeaders = response.headers();
-      Object.assign(headers, responseHeaders);
-
-      // Capture endpoint information
-      endpoints.push({
-        url: request.url(),
-        method: request.method(),
-        type: this.determineEndpointType(request.resourceType()),
-        statusCode: response.status(),
-        contentType: responseHeaders['content-type']
-      });
-
-      // Check for mixed content
-      if (request.url().startsWith('http://') && request.frame()?.url()?.startsWith('https://')) {
-        mixedContentViolations.push(request.url());
-      }
-
-      route.continue();
-    });
-
-    // Navigate to target
-    try {
-      await this.page.goto(request.targetUrl, {
-        waitUntil: 'networkidle',
-        timeout: 30000
-      });
-    } catch (error) {
-      console.error(`Navigation error for ${request.targetUrl}:`, error);
-      // Continue with partial data
-    }
-
-    // Extract cookies
-    const browserCookies = await this.context.cookies();
-    cookies.push(...browserCookies.map((cookie: any) => ({
-      name: cookie.name,
-      domain: cookie.domain,
-      path: cookie.path,
-      httpOnly: cookie.httpOnly || false,
-      secure: cookie.secure || false,
-      sameSite: cookie.sameSite as 'Strict' | 'Lax' | 'None' | null,
-      value: cookie.value,
-      expires: cookie.expires ? new Date(cookie.expires * 1000).toISOString() : undefined
-    })));
-
-    // Technology fingerprinting from page content
-    const pageContent = await this.page.content();
-    const pageUrl = this.page.url();
-    technologies.push(...this.fingerprintTechnologies(pageContent, headers, pageUrl));
-
-    // TLS information
-    const tlsInfo = await this.extractTLSInfo();
-
-    // DNS records (basic DNS lookup)
-    const dnsRecords = await this.performDNSLookup(request.targetUrl);
-
-    // Port scanning (basic TCP connection check)
-    const openPorts = await this.performPortScan(request.targetUrl);
-
-    // Cleanup
-    await this.page.route('**/*', (route: any) => route.continue());
-
-    return {
-      targetUrl: request.targetUrl,
-      scanId,
-      scanTime,
-      orgType: request.orgType,
-      technologies,
-      headers,
-      cookies,
-      endpoints,
-      tlsInfo,
-      dnsRecords,
-      openPorts,
-      mixedContentViolations: mixedContentViolations.length > 0 ? mixedContentViolations : undefined
-    };
-  }
-
-  private determineEndpointType(resourceType: string): Endpoint['type'] {
-    const typeMap: Record<string, Endpoint['type']> = {
-      'xhr': 'api',
-      'fetch': 'api',
-      'websocket': 'websocket',
-      'document': 'static',
-      'stylesheet': 'static',
-      'script': 'static',
-      'image': 'static',
-      'font': 'static',
-      'media': 'static'
-    };
-    return typeMap[resourceType] || 'static';
-  }
-
-  private fingerprintTechnologies(
-    html: string,
-    headers: Record<string, string>,
-    url: string
-  ): Technology[] {
-    const technologies: Technology[] = [];
-
-    // Server header fingerprinting
-    const serverHeader = headers['server'];
-    if (serverHeader) {
-      if (serverHeader.includes('nginx')) {
-        technologies.push({ name: 'Nginx', version: this.extractVersion(serverHeader), category: 'Web Server', confidence: 0.9 });
-      }
-      if (serverHeader.includes('Apache')) {
-        technologies.push({ name: 'Apache', version: this.extractVersion(serverHeader), category: 'Web Server', confidence: 0.9 });
-      }
-      if (serverHeader.includes('cloudflare')) {
-        technologies.push({ name: 'Cloudflare', version: '', category: 'CDN', confidence: 0.95 });
-      }
-    }
-
-    // X-Powered-By header
-    const poweredBy = headers['x-powered-by'];
-    if (poweredBy) {
-      if (poweredBy.includes('Express')) {
-        technologies.push({ name: 'Express', version: this.extractVersion(poweredBy), category: 'Framework', confidence: 0.85 });
-      }
-      if (poweredBy.includes('PHP')) {
-        technologies.push({ name: 'PHP', version: this.extractVersion(poweredBy), category: 'Language', confidence: 0.9 });
-      }
-    }
-
-    // HTML meta tags and script sources
-    if (html.includes('react') || html.includes('React')) {
-      technologies.push({ name: 'React', version: '', category: 'JavaScript Framework', confidence: 0.7 });
-    }
-    if (html.includes('vue') || html.includes('Vue')) {
-      technologies.push({ name: 'Vue.js', version: '', category: 'JavaScript Framework', confidence: 0.7 });
-    }
-    if (html.includes('angular') || html.includes('ng-app')) {
-      technologies.push({ name: 'Angular', version: '', category: 'JavaScript Framework', confidence: 0.7 });
-    }
-    if (html.includes('jquery')) {
-      technologies.push({ name: 'jQuery', version: '', category: 'JavaScript Library', confidence: 0.8 });
-    }
-    if (html.includes('bootstrap')) {
-      technologies.push({ name: 'Bootstrap', version: '', category: 'CSS Framework', confidence: 0.8 });
-    }
-    if (html.includes('tailwind')) {
-      technologies.push({ name: 'Tailwind CSS', version: '', category: 'CSS Framework', confidence: 0.8 });
-    }
-    if (html.includes('stripe')) {
-      technologies.push({ name: 'Stripe', version: '', category: 'Payment', confidence: 0.9 });
-    }
-    if (html.includes('aws') || html.includes('amazonaws')) {
-      technologies.push({ name: 'AWS', version: '', category: 'Cloud', confidence: 0.7 });
-    }
-
-    return technologies;
-  }
-
-  private extractVersion(header: string): string {
-    const versionMatch = header.match(/\/(\d+[\d.]*)/);
-    return versionMatch ? versionMatch[1] : '';
-  }
-
-  private async extractTLSInfo() {
-    if (!this.page) return undefined;
+    let browser: Browser | null = null
 
     try {
-      const response = await this.page.evaluate(() => {
-        // This is a simplified version - in production, you'd use the TLS protocol info
-        return {
-          protocol: 'TLS 1.2+',
-          cipherSuite: 'Unknown'
-        };
-      });
-      return response;
-    } catch (error) {
-      return undefined;
-    }
-  }
+      browser = await chromium.launch({
+        headless: true,
+        args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
+      })
 
-  private async performDNSLookup(url: string) {
-    // In a real implementation, you'd use a DNS library
-    // For now, return empty structure
-    return {
-      A: [],
-      AAAA: [],
-      MX: [],
-      TXT: [],
-      CNAME: []
-    };
-  }
+      const context = await browser.newContext({
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewport: { width: 1920, height: 1080 },
+        ignoreHTTPSErrors: true,
+      })
 
-  private async performPortScan(url: string): Promise<number[]> {
-    // In a real implementation, you'd perform actual TCP connection checks
-    // For now, return common web ports as "open" for demonstration
-    const hostname = new URL(url).hostname;
-    const commonPorts = [80, 443, 8080, 8443];
-    
-    // Simulate port scan results
-    return [80, 443]; // Assume HTTP and HTTPS are open
-  }
+      const page = await context.newPage()
 
-  async cleanup(): Promise<void> {
-    if (this.page) {
-      await this.page.close();
-      this.page = null;
-    }
-    if (this.context) {
-      await this.context.close();
-      this.context = null;
-    }
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
+      const onResponse = (response: Response) => {
+        try {
+          const req = response.request()
+          const responseHeaders = normalizeHeaders(response.headers())
+          const requestHeaders = normalizeHeaders(req.headers())
+
+          httpExchanges.push({
+            url: response.url(),
+            method: req.method(),
+            status: response.status(),
+            resourceType: req.resourceType(),
+            requestHeaders,
+            responseHeaders,
+          })
+
+          endpoints.push({
+            url: response.url(),
+            method: req.method(),
+            type: determineEndpointType(req.resourceType()),
+            statusCode: response.status(),
+            contentType: responseHeaders['content-type'],
+          })
+
+          if (req.resourceType() === 'document' && response.url().startsWith(target.origin)) {
+            Object.assign(headers, responseHeaders)
+          }
+
+          if (
+            pageIsHttps &&
+            req.url().startsWith('http://') &&
+            !req.url().startsWith('https://')
+          ) {
+            mixedContentViolations.push(req.url())
+          }
+        } catch {
+          /* third-party frame failures must not abort scan */
+        }
+      }
+
+      page.on('response', onResponse)
+
+      page.on('pageerror', () => {
+        /* ignore runtime script errors */
+      })
+
+      page.on('requestfailed', () => {
+        /* tracking pixels / ad blockers — non-fatal */
+      })
+
+      try {
+        await page.goto(request.targetUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 })
+        await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
+      } catch (err) {
+        console.error(`Navigation partial for ${request.targetUrl}:`, err)
+      }
+
+      const browserCookies = await context.cookies()
+      cookies.push(
+        ...browserCookies.map((cookie) => ({
+          name: cookie.name,
+          domain: cookie.domain,
+          path: cookie.path,
+          httpOnly: cookie.httpOnly ?? false,
+          secure: cookie.secure ?? false,
+          sameSite: (cookie.sameSite as Cookie['sameSite']) ?? null,
+          expires: cookie.expires ? new Date(cookie.expires * 1000).toISOString() : undefined,
+        })),
+      )
+
+      let domForms: DomFormField[] = []
+      let externalScripts: ExternalScriptSource[] = []
+      try {
+        const dom = await extractDomArtifacts(page)
+        domForms = dom.domForms
+        externalScripts = dom.externalScripts
+      } catch {
+        /* DOM extraction is best-effort */
+      }
+
+      const pageContent = await page.content().catch(() => '')
+      const technologies = fingerprintTechnologies(pageContent, headers)
+
+      const securityState = await page
+        .evaluate(() => (window as unknown as { chrome?: { csi?: () => unknown } }).chrome)
+        .catch(() => null)
+
+      const tlsInfo = pageIsHttps
+        ? {
+            protocol: 'TLS (browser stack)',
+            cipherSuite: securityState ? 'negotiated-in-browser' : 'unknown',
+          }
+        : undefined
+
+      const dnsRecords = await resolveDnsRecords(target.hostname)
+      const openPorts = await scanTcpPorts(target.hostname)
+
+      return {
+        targetUrl: page.url() || request.targetUrl,
+        scanId,
+        scanTime,
+        orgType: request.orgType,
+        technologies,
+        headers,
+        cookies,
+        endpoints,
+        tlsInfo,
+        dnsRecords,
+        openPorts,
+        mixedContentViolations:
+          mixedContentViolations.length > 0 ? [...new Set(mixedContentViolations)] : undefined,
+        httpExchanges: httpExchanges.slice(0, 500),
+        domForms,
+        externalScripts,
+        pageIsHttps,
+      }
+    } finally {
+      if (browser) await browser.close().catch(() => {})
     }
   }
 }
 
 export async function createScanWorker(): Promise<ScanWorker> {
-  const worker = new ScanWorker();
-  await worker.initialize();
-  return worker;
+  return new ScanWorker()
 }

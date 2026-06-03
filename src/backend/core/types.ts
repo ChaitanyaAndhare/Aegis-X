@@ -53,6 +53,26 @@ export interface Endpoint {
   contentType?: string;
 }
 
+export interface CapturedHttpExchange {
+  url: string;
+  method: string;
+  status: number;
+  resourceType: string;
+  requestHeaders: Record<string, string>;
+  responseHeaders: Record<string, string>;
+}
+
+export interface DomFormField {
+  formAction: string;
+  formMethod: string;
+  fields: { name: string; type: string }[];
+}
+
+export interface ExternalScriptSource {
+  src: string;
+  crossOrigin: string | null;
+}
+
 export interface AssetInventory {
   targetUrl: string;
   scanId: string;
@@ -77,6 +97,10 @@ export interface AssetInventory {
   };
   openPorts?: number[];
   mixedContentViolations?: string[];
+  httpExchanges?: CapturedHttpExchange[];
+  domForms?: DomFormField[];
+  externalScripts?: ExternalScriptSource[];
+  pageIsHttps?: boolean;
 }
 
 export interface ScanDelta {

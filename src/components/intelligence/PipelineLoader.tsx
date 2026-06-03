@@ -1,12 +1,11 @@
 import { Loader2 } from 'lucide-react'
 
 const STEPS = [
-  'Active pentest',
-  'Evidence capture',
-  'Expert analysis',
-  'Threat modeling',
-  'Risk scoring',
-  'Remediation roadmap',
+  'Extract — browser & network capture',
+  'Transform — heuristic rules engine',
+  'Risk — contextual severity profiling',
+  'Load — persist inventory & findings',
+  'Delta — historical comparison',
 ]
 
 export function PipelineLoader({ activeStep }: { activeStep: number }) {
@@ -16,7 +15,7 @@ export function PipelineLoader({ activeStep }: { activeStep: number }) {
       <p className="mt-4 text-sm font-medium">Penetration test in progress</p>
       <p className="mt-1 text-xs text-muted-foreground">{STEPS[activeStep - 1] ?? STEPS[0]}</p>
       <p className="mt-4 max-w-sm mx-auto text-xs text-muted-foreground">
-        Safe educational probes only — no destructive or denial-of-service testing
+        Deterministic Security ETL — zero AI in the evaluation pipeline
       </p>
     </div>
   )
