@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { getRun, subscribeRun } from '../lib/api'
 import type { IntelligenceReport } from '../lib/types'
 import { EnterpriseDashboard } from '@/components/enterprise/EnterpriseDashboard'
+import { AssessmentShell } from '@/components/assessment/AssessmentShell'
 import { PipelineLoader } from '@/components/intelligence/PipelineLoader'
 import { Alert } from '@/components/ui/alert'
 
@@ -64,7 +65,7 @@ function RunPage() {
     )
   }
 
-  if (!report?.enterprise?.scanResult) {
+  if (!report) {
     return (
       <div className="ax-container py-20">
         <Alert variant="destructive">{error ?? 'No report'}</Alert>
@@ -72,5 +73,21 @@ function RunPage() {
     )
   }
 
-  return <EnterpriseDashboard scanResult={report.enterprise.scanResult} />
+  const enterprise = report.enterprise?.scanResult
+
+  if (enterprise) {
+    return (
+      <div className="space-y-0">
+        <EnterpriseDashboard scanResult={enterprise} />
+        <details className="border-t border-border bg-muted/30 px-6 py-4 md:px-10">
+          <summary className="cursor-pointer text-sm text-muted-foreground">Extended assessment</summary>
+          <div className="mt-6">
+            <AssessmentShell report={report} runId={runId} onRescan={() => (window.location.href = '/')} />
+          </div>
+        </details>
+      </div>
+    )
+  }
+
+  return <AssessmentShell report={report} runId={runId} onRescan={() => (window.location.href = '/')} />
 }

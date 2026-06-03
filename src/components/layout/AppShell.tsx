@@ -1,4 +1,5 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
+import { useGuest } from '@/lib/guest'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -7,8 +8,10 @@ const NAV = [
 ] as const
 
 export function AppShell() {
+  const { guest, setGuest } = useGuest()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isRun = pathname.startsWith('/runs/')
+  const runId = isRun ? pathname.split('/')[2] : null
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -17,7 +20,7 @@ export function AppShell() {
           <Link to="/" className="font-display text-xl tracking-tight">
             AEGIS<span className="text-muted-foreground">—X</span>
           </Link>
-          <nav className="hidden items-center gap-1 sm:flex">
+          <nav className="flex flex-wrap items-center gap-1">
             {NAV.map((item) => (
               <Link
                 key={item.to}
@@ -32,6 +35,40 @@ export function AppShell() {
                 {item.label}
               </Link>
             ))}
+            {runId && (
+              <>
+                <Link
+                  to="/lab/$runId"
+                  params={{ runId }}
+                  className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground sm:inline-block"
+                >
+                  Lab
+                </Link>
+                <Link
+                  to="/genome/$runId"
+                  params={{ runId }}
+                  className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground sm:inline-block"
+                >
+                  Genome
+                </Link>
+                <Link
+                  to="/digital-twin/$runId"
+                  params={{ runId }}
+                  className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground md:inline-block"
+                >
+                  Twin
+                </Link>
+              </>
+            )}
+            <label className="ml-2 flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={guest}
+                onChange={(e) => setGuest(e.target.checked)}
+                className="rounded border-border"
+              />
+              Guest
+            </label>
           </nav>
         </div>
       </header>
